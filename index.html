@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="AdTech Playground: an independent, educational RTB auction simulator. Explore first-price auctions, OpenRTB-inspired bid requests, bid validation and tie-breaking in your browser.">
+  <meta name="theme-color" content="#ffffff">
+  <title>AdTech Playground: RTB Auction Simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#simulator">Skip to simulator</a>
+
+  <header class="site-header">
+    <div class="container header-inner">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">RTB</div>
+        <div class="brand-text">
+          <p class="eyebrow">AdTech Playground</p>
+          <h1>RTB Auction Simulator</h1>
+          <p class="subtitle">Explore the mechanics of programmatic advertising through interactive experiments.</p>
+        </div>
+      </div>
+      <ul class="tags" aria-label="Simulator properties">
+        <li class="tag">first-price</li>
+        <li class="tag">client-side only</li>
+        <li class="tag">OpenRTB 2.6-inspired</li>
+      </ul>
+    </div>
+    <nav class="site-nav" aria-label="Sections">
+      <div class="container">
+        <ul>
+          <li><a href="#simulator">Simulator</a></li>
+          <li><a href="#bid-request-section">Bid request</a></li>
+          <li><a href="#under-the-hood">Under the hood</a></li>
+          <li><a href="#fundamentals">Fundamentals</a></li>
+          <li><a href="#architecture">How it works</a></li>
+          <li><a href="#roadmap">Roadmap</a></li>
+        </ul>
+      </div>
+    </nav>
+  </header>
+
+  <main class="container">
+    <aside class="note" aria-label="Educational disclaimer">
+      <span class="note-icon" aria-hidden="true">i</span>
+      <div>
+        <p><strong>Educational first-price auction simulation, not a production advertising auction.</strong> Every calculation runs locally in your browser using simulated data. No bid requests are transmitted and no real exchange, SSP or DSP is contacted. Real exchanges also apply bid floors, timeouts, fraud filtering, privacy controls, fees and their own pricing rules.</p>
+        <p class="note-small">An independent educational project. It is not affiliated with any advertising exchange or ad-tech provider.</p>
+      </div>
+    </aside>
+
+    <section id="simulator" class="section-tight" aria-labelledby="simulator-title">
+      <h2 id="simulator-title" class="sr-only">Simulator</h2>
+      <div class="workspace">
+        <!-- Advertiser configuration -->
+        <section class="panel" aria-labelledby="bidders-title">
+          <div class="panel-head">
+            <h3 id="bidders-title">Advertisers &amp; bids</h3>
+            <span class="meta" id="advertiser-count" aria-live="polite"></span>
+          </div>
+          <div class="panel-body">
+            <div class="adv-header" aria-hidden="true">
+              <span>#</span><span>Name</span><span>Bid (USD CPM)</span><span></span>
+            </div>
+            <ol class="adv-list" id="advertiser-list" aria-label="Advertisers in submission order"></ol>
+            <p class="form-message" id="form-message" role="alert"></p>
+
+            <details class="rules" open>
+              <summary>Auction rules used by this simulator</summary>
+              <dl>
+                <div><dt>Pricing</dt><dd>First-price: the winner pays its own submitted bid.</dd></div>
+                <div><dt>Tie-break</dt><dd>When bids are equal, the earliest advertiser in submission order (highest in the list) wins.</dd></div>
+                <div><dt>Valid bid</dt><dd><code>$0.01</code> to <code>$1000.00</code> CPM, digits only, at most 2 decimal places.</dd></div>
+                <div><dt>Valid name</dt><dd>1 to 40 characters after trimming whitespace.</dd></div>
+                <div><dt>No fill</dt><dd>If every bid is rejected, the impression goes unsold.</dd></div>
+                <div><dt>Limit</dt><dd>Up to 12 advertisers per auction.</dd></div>
+              </dl>
+            </details>
+          </div>
+          <div class="toolbar">
+            <button type="button" class="btn" id="add-btn">+ Add advertiser</button>
+            <span class="spacer"></span>
+            <button type="button" class="btn" id="reset-btn">Reset</button>
+            <button type="button" class="btn btn-primary" id="run-btn">Run auction</button>
+          </div>
+        </section>
+
+        <!-- Results + timeline -->
+        <div class="stack">
+          <section class="panel" aria-labelledby="results-title">
+            <div class="panel-head">
+              <h3 id="results-title">Auction result</h3>
+              <span class="meta" id="results-meta"></span>
+            </div>
+            <div class="panel-body" id="results"></div>
+          </section>
+
+          <section class="panel" aria-labelledby="timeline-title">
+            <div class="panel-head">
+              <h3 id="timeline-title">Auction timeline</h3>
+              <span class="meta" id="timeline-meta"></span>
+            </div>
+            <div class="panel-body">
+              <p class="timeline-warning"><strong>Timestamps are illustrative, not measured.</strong> Values such as <code>t+42ms</code> are drawn from fixed ranges to show the order and rough proportions of each stage. This page runs no real-time auction and measures no network latency.</p>
+              <ol class="timeline" id="timeline" aria-label="Auction stages"></ol>
+              <p class="timeline-summary" id="timeline-summary"></p>
+              <details class="latency-note">
+                <summary>Animation duration vs. real RTB latency</summary>
+                <p>The animation pauses about 550ms per stage (none if your system requests reduced motion), so one run takes roughly 2.75 seconds. That delay exists only to make each stage readable.</p>
+                <p>In production, the exchange sets a response deadline in the bid request (<code>tmax</code>, 120ms here), and the whole auction has to finish while the page is loading. Real latency depends on network distance, bidder infrastructure and exchange configuration, and this simulator models none of it.</p>
+              </details>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="bid-request-section" aria-labelledby="request-title">
+      <h2 id="request-title">The bid request</h2>
+      <p class="lead">An <strong>illustrative, OpenRTB-inspired</strong> bid request, generated each time an auction runs. It uses field names and enumerated values from <a href="https://github.com/InteractiveAdvertisingBureau/openrtb2.x" target="_blank" rel="noopener noreferrer">OpenRTB 2.6</a>, but it is intentionally minimal. It is not a complete or certified production request.</p>
+
+      <div class="request-grid">
+        <div class="code-panel">
+          <div class="code-head">
+            <span class="code-file">bid-request.json</span>
+            <button type="button" class="btn btn-small" id="copy-btn" aria-describedby="request-meta">Copy JSON</button>
+          </div>
+          <pre class="code" id="bid-request" tabindex="0" aria-label="Generated bid request JSON"></pre>
+          <p class="code-foot" id="request-meta"></p>
+          <p class="sr-only" id="copy-status" role="status" aria-live="polite"></p>
+        </div>
+
+        <div class="annotations">
+          <h3>Field annotations</h3>
+          <dl>
+            <div><dt><code>id</code></dt><dd>Unique ID of this bid request, generated by the exchange. Bidders echo it in their bid response.</dd></div>
+            <div><dt><code>test</code></dt><dd><code>1</code> marks test mode, meaning the auction is not billable. That suits a simulation.</dd></div>
+            <div><dt><code>at</code></dt><dd>Auction type. <code>1</code> = first price, <code>2</code> = second price plus.</dd></div>
+            <div><dt><code>tmax</code></dt><dd>Maximum time in milliseconds the exchange waits for bids, including network latency.</dd></div>
+            <div><dt><code>cur</code></dt><dd>Currencies the exchange accepts for bids, as ISO-4217 codes.</dd></div>
+            <div><dt><code>imp[]</code></dt><dd>The impressions on offer. Each has its own <code>id</code>. Here there is one 300×250 banner, described by <code>banner.format</code>.</dd></div>
+            <div><dt><code>imp.bidfloor</code></dt><dd>Minimum acceptable bid, expressed in CPM. <code>bidfloorcur</code> gives its currency.</dd></div>
+            <div><dt><code>imp.secure</code></dt><dd><code>1</code> requires an HTTPS-safe creative.</dd></div>
+            <div><dt><code>site</code></dt><dd>Where the ad will appear: domain, full page URL and publisher.</dd></div>
+            <div><dt><code>device.devicetype</code></dt><dd>A numeric enumeration (AdCOM List: Device Types), not a string. <code>1</code> = Mobile/Tablet. More specific values are <code>4</code> = Phone and <code>5</code> = Tablet.</dd></div>
+            <div><dt><code>device.geo.country</code></dt><dd>Country as an ISO 3166-1 alpha-3 code, for example <code>USA</code>.</dd></div>
+          </dl>
+        </div>
+      </div>
+
+      <div class="callout">
+        <p><strong>What a real exchange does differently:</strong> it usually sends a request like this to many DSPs in parallel, often with extra signals such as user agent, IP-derived geography, consent strings and supply-chain objects. It then waits up to <code>tmax</code> for bid responses. This simulator transmits nothing. The JSON is built and displayed in your browser, and the advertisers you configure stand in for DSP bid responses.</p>
+      </div>
+    </section>
+
+    <section class="section" id="under-the-hood" aria-labelledby="hood-title">
+      <h2 id="hood-title">Under the hood</h2>
+      <p class="lead">How the auction is implemented. Every snippet below is copied from <code>auction-core.js</code>, the DOM-free module that both the UI and the automated tests use.</p>
+
+      <div class="hood-grid">
+        <article class="hood-item">
+          <span class="term">01 · Input validation</span>
+          <h3>Names and bids are checked before ranking</h3>
+          <p>Names are trimmed and must be 1–40 characters. Bids must match a strict pattern: digits with an optional decimal part of one or two digits. Symbols such as <code>$</code>, commas and exponents like <code>1e3</code> are rejected. Every failure returns a stable error code, such as <code>BID_NEGATIVE</code>, plus a readable message.</p>
+          <pre class="snippet" data-source="auction-core.js"><code>const BID_PATTERN = /^\d+(\.\d{1,2})?$/;</code></pre>
+          <pre class="snippet" data-source="auction-core.js"><code>if (name === "") {
+  return issue("NAME_EMPTY", "Name is empty. Every bidder needs a name so the result can identify it.");
+}</code></pre>
+        </article>
+
+        <article class="hood-item">
+          <span class="term">02 · Integer arithmetic</span>
+          <h3>Money is compared in integer cents</h3>
+          <p>Binary floating point cannot represent most decimal fractions exactly, so <code>0.1 + 0.2 === 0.3</code> is <code>false</code> in JavaScript. Validated bid strings are split on the decimal point and turned into whole cents without using <code>parseFloat</code>, so every comparison is between exact integers.</p>
+          <pre class="snippet" data-source="auction-core.js"><code>function toCents(bid) {
+  const [whole, fraction = ""] = bid.split(".");
+  return Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
+}</code></pre>
+        </article>
+
+        <article class="hood-item">
+          <span class="term">03 · Bid ranking</span>
+          <h3>Valid bids are sorted highest first</h3>
+          <p>Rejected entries are filtered out. The rest are sorted by <code>cents</code> in descending order. When two amounts are equal, the comparator falls back to each bid's original <code>index</code>.</p>
+          <pre class="snippet" data-source="auction-core.js"><code>const validBids = evaluated
+  .filter(function (b) { return b.valid; })
+  .sort(function (a, b) { return b.cents - a.cents || a.index - b.index; });</code></pre>
+        </article>
+
+        <article class="hood-item">
+          <span class="term">04 · Tie-breaking</span>
+          <h3>Submission order decides equal bids</h3>
+          <p>Because the sort puts the lower <code>index</code> first, the earliest submitted bid becomes <code>validBids[0]</code>. The tie group is reported separately so the UI can explain the decision. Real exchanges define their own rules, and some pick randomly.</p>
+          <pre class="snippet" data-source="auction-core.js"><code>const tiedBids = winner
+  ? validBids.filter(function (b) { return b.cents === winner.cents; })
+  : [];</code></pre>
+        </article>
+
+        <article class="hood-item">
+          <span class="term">05 · First-price pricing</span>
+          <h3>The winner pays its own bid</h3>
+          <p>In a first-price auction the clearing price equals the winning bid, and the runner-up has no effect on it. That is why bidders in first-price markets often "shade" their bids below their true valuation.</p>
+          <pre class="snippet" data-source="auction-core.js"><code>clearingPriceCents: winner ? winner.cents : null, // first-price: winner pays own bid</code></pre>
+        </article>
+
+        <article class="hood-item">
+          <span class="term">06 · No-fill handling</span>
+          <h3>No valid bids means no sale</h3>
+          <p>If nothing survives validation, there is no winner and no clearing price. The result has <code>status: "no-fill"</code> and a reason that separates an empty auction from one where every bid was rejected.</p>
+          <pre class="snippet" data-source="auction-core.js"><code>if (!winner) {
+  noFillReason = evaluated.length === 0 ? "NO_BIDDERS" : "ALL_BIDS_REJECTED";
+}</code></pre>
+        </article>
+      </div>
+
+      <div class="compare">
+        <h3>This simulation vs. a production RTB exchange</h3>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Comparison table, scrolls horizontally on small screens">
+          <table>
+            <thead>
+              <tr><th scope="col">Aspect</th><th scope="col">This simulator</th><th scope="col">Production exchange</th></tr>
+            </thead>
+            <tbody>
+              <tr><th scope="row">Bidders</th><td>Advertisers you type in</td><td>DSPs reached over HTTP, often many in parallel</td></tr>
+              <tr><th scope="row">Bid request</th><td>Displayed only, never sent</td><td>Sent to each eligible bidder</td></tr>
+              <tr><th scope="row">Timing</th><td>Illustrative timestamps, slowed animation</td><td>Strict <code>tmax</code> deadline. Late bids are dropped.</td></tr>
+              <tr><th scope="row">Floors</th><td>Fixed: minimum $0.01 CPM</td><td>Dynamic, per impression and deal</td></tr>
+              <tr><th scope="row">Pricing</th><td>Pure first-price</td><td>First- or second-price, plus fees and deal terms</td></tr>
+              <tr><th scope="row">Other checks</th><td>Format, range and name validation</td><td>Brand safety, fraud (IVT) filtering, privacy and consent, creative audits</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="fundamentals" aria-labelledby="fundamentals-title">
+      <h2 id="fundamentals-title">Learn the fundamentals</h2>
+      <p class="lead">The vocabulary you need to read any programmatic advertising documentation.</p>
+
+      <figure class="flow">
+        <ol class="flow-steps" aria-label="Simplified programmatic workflow">
+          <li><span class="flow-name">Publisher</span><span class="flow-desc">Has an ad slot</span></li>
+          <li><span class="flow-name">SSP</span><span class="flow-desc">Offers the inventory</span></li>
+          <li><span class="flow-name">Ad exchange</span><span class="flow-desc">Sends bid requests</span></li>
+          <li><span class="flow-name">DSPs</span><span class="flow-desc">Return bids</span></li>
+          <li><span class="flow-name">Auction</span><span class="flow-desc">Ranks bids</span></li>
+          <li><span class="flow-name">Winning ad</span><span class="flow-desc">Is rendered</span></li>
+        </ol>
+        <figcaption>A simplified representation. Real integrations can chain several SSPs and exchanges, use header bidding, private marketplaces or direct deals, and SSP and exchange roles are often combined in one company.</figcaption>
+      </figure>
+
+      <div class="glossary">
+        <article>
+          <span class="term">Programmatic</span>
+          <h3>Programmatic advertising</h3>
+          <p>Buying and selling ad space through software and automated rules, not manual insertion orders. Decisions are made per impression, using data about the slot and context.</p>
+        </article>
+        <article>
+          <span class="term">RTB</span>
+          <h3>Real-Time Bidding</h3>
+          <p>A form of programmatic buying in which each impression is auctioned individually while the page or app loads, typically within a few hundred milliseconds.</p>
+        </article>
+        <article>
+          <span class="term">DSP</span>
+          <h3>Demand-side platform</h3>
+          <p>Software that bids on behalf of advertisers. It evaluates each bid request against campaign targeting, pacing and budget, then decides whether to bid and how much.</p>
+        </article>
+        <article>
+          <span class="term">SSP</span>
+          <h3>Supply-side platform</h3>
+          <p>Software that publishers use to sell inventory. It connects ad slots to demand sources, enforces floors and rules, and aims to maximise publisher yield.</p>
+        </article>
+        <article>
+          <span class="term">Ad exchange</span>
+          <h3>The marketplace</h3>
+          <p>The venue that receives inventory, sends bid requests to DSPs, runs the auction and returns the winning creative. Many SSPs operate their own exchange.</p>
+        </article>
+        <article>
+          <span class="term">CPM</span>
+          <h3>Cost per mille</h3>
+          <p>Price per 1,000 impressions. Bids are quoted in CPM even though each auction sells a single impression.</p>
+          <div class="formula">price per impression = CPM ÷ 1000<br>$3.20 CPM → $0.0032</div>
+        </article>
+        <article>
+          <span class="term">Request / response</span>
+          <h3>Bid requests and bid responses</h3>
+          <p>A <strong>bid request</strong> describes the impression on offer, as in the JSON above. A <strong>bid response</strong> is the DSP's reply: a <code>seatbid</code> containing a <code>bid</code> with a <code>price</code> and creative markup, or no bid at all.</p>
+        </article>
+        <article>
+          <span class="term">Auction models</span>
+          <h3>First-price vs. second-price</h3>
+          <p><strong>First-price:</strong> the winner pays its own bid. <strong>Second-price:</strong> the winner pays roughly the runner-up's bid plus a small increment. With bids of $3.20 and $2.80, first-price clears at $3.20, and a second-price auction with a $0.01 increment would clear at $2.81. This simulator implements first-price only.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="architecture" aria-labelledby="arch-title">
+      <h2 id="arch-title">How this project works</h2>
+      <p class="lead">A static site with no build step. All auction calculations happen locally in the browser. There is <strong>no backend, no database, no external API integration and no actual DSP connection</strong>.</p>
+
+      <figure class="arch">
+        <div class="arch-browser">
+          <p class="arch-label">Browser</p>
+          <div class="arch-row">
+            <div class="arch-box"><code>index.html</code><span>Structure, content and accessible landmarks</span></div>
+            <div class="arch-box"><code>styles.css</code><span>Presentation, responsive layout, reduced motion</span></div>
+          </div>
+          <div class="arch-arrow" aria-hidden="true">↓ loads</div>
+          <div class="arch-row">
+            <div class="arch-box arch-accent"><code>app.js</code><span>State, timeline animation, DOM rendering, events, clipboard</span></div>
+            <div class="arch-link" aria-hidden="true">→ calls</div>
+            <div class="arch-box arch-accent"><code>auction-core.js</code><span>Validation, integer cents, ranking, tie-break, first-price, no-fill, bid request</span></div>
+          </div>
+        </div>
+        <div class="arch-side">
+          <div class="arch-box"><code>tests/*.test.js</code><span>Run in Node with <code>node --test</code> and require <code>auction-core.js</code> directly</span></div>
+          <div class="arch-box arch-none"><code>No network</code><span>No server, database, API or DSP. Nothing leaves the browser.</span></div>
+        </div>
+        <figcaption>The auction rules live in a module with no DOM access, so the same code powers the UI and the automated tests.</figcaption>
+      </figure>
+    </section>
+
+    <section class="section" id="roadmap" aria-labelledby="roadmap-title">
+      <h2 id="roadmap-title">Future development</h2>
+      <p class="lead">What exists today, and what could come next. Proposed items are <strong>not implemented</strong>.</p>
+      <div class="roadmap">
+        <div class="roadmap-col">
+          <h3><span class="badge win">Implemented</span></h3>
+          <ul>
+            <li>First-price auction with up to 12 configurable advertisers</li>
+            <li>Validation with error codes, integer-cents comparison and submission-order tie-break</li>
+            <li>No-fill handling</li>
+            <li>Five-stage timeline with illustrative timestamps</li>
+            <li>Illustrative OpenRTB 2.6-inspired bid request with copy to clipboard</li>
+            <li>Automated tests for the auction core (<code>node --test</code>)</li>
+          </ul>
+        </div>
+        <div class="roadmap-col">
+          <h3><span class="badge lose">Proposed</span></h3>
+          <ul>
+            <li>A REST API exposing the auction core, e.g. <code>POST /auction</code></li>
+            <li>Bid request and bid response validation against a schema</li>
+            <li>Configurable bid floors per impression</li>
+            <li>Multiple auction models, including second-price</li>
+            <li>Auction analytics across repeated runs: win rate, average clearing price</li>
+            <li>More demonstrations, such as bid shading, timeouts and multi-impression requests</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">AdTech Playground: RTB Auction Simulator · An independent educational project using simulated data. It does not connect to real advertising infrastructure and is not affiliated with any exchange or ad-tech provider.</div>
+  </footer>
+
+  <p class="sr-only" id="status" role="status" aria-live="polite"></p>
+
+  <script src="./auction-core.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
